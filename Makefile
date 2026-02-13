@@ -30,8 +30,8 @@ build/libaudiotap.dylib: build/audiotap_system.o build/audiotap_mic.o build/audi
 
 examples: build/capture_both
 
-build/capture_both: examples/capture_both.c build/libaudiotap.dylib include/audiotap.h
-	$(CC) $(CFLAGS) -o $@ $< -Lbuild -laudiotap $(LDFLAGS) -Wl,-rpath,@executable_path
+build/capture_both: examples/capture_both.c build/libaudiotap.dylib include/audiotap.h examples/Info.plist
+	$(CC) $(CFLAGS) -o $@ $< -Lbuild -laudiotap $(LDFLAGS) -Wl,-rpath,@executable_path -sectcreate __TEXT __info_plist examples/Info.plist
 
 test: build/test_audiotap build/test_audiotap_system build/test_audiotap_permission
 	@echo "Running mic/common tests..."
