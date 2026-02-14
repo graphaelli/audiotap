@@ -7,8 +7,8 @@
 package audiotap
 
 /*
-#cgo CFLAGS:  -I${SRCDIR}/include
-#cgo LDFLAGS: ${SRCDIR}/build/libaudiotap.a -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -framework Foundation -framework AVFoundation -lobjc
+#cgo CFLAGS:  -I${SRCDIR}/../include
+#cgo LDFLAGS: ${SRCDIR}/../build/libaudiotap.a -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -framework Foundation -framework AVFoundation -lobjc
 
 #include "bridge.h"
 #include <stdlib.h>
@@ -174,6 +174,24 @@ func (t *Tap) Read(buf []float32) (int, error) {
 		return 0, io.EOF
 	}
 	return int(n), nil
+}
+
+// newBridgeOnlyTap creates a Tap backed only by a bridge (no real audio device).
+func newBridgeOnlyTap() *Tap {
+	bridge := C.bridge_create()
+	if bridge == nil {
+		return nil
+	}
+	return &Tap{bridge: bridge}
+}
+
+// writeSamples injects samples into the bridge ring buffer.
+func (t *Tap) writeSamples(samples []float32) {
+	if len(samples) == 0 {
+		return
+	}
+	C.bridge_write_samples(t.bridge,
+		(*C.float)(unsafe.Pointer(&samples[0])), C.uint32_t(len(samples)))
 }
 
 // Close stops capture and releases all resources.  Safe to call multiple times.

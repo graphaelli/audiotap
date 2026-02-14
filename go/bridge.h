@@ -1,7 +1,7 @@
 #ifndef AUDIOTAP_BRIDGE_H
 #define AUDIOTAP_BRIDGE_H
 
-#include "audiotap.h"
+#include "../include/audiotap.h"
 #include <stdint.h>
 
 // Opaque bridge state — contains a lock-free SPSC ring buffer and

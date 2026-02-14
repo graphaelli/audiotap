@@ -6,22 +6,15 @@ import (
 	"io"
 	"sync"
 	"testing"
-	"unsafe"
 )
 
-/*
-#include "bridge.h"
-*/
-import "C"
-
-// newTestTap creates a Tap backed only by a bridge (no real audio device).
 func newTestTap(t *testing.T) *Tap {
 	t.Helper()
-	bridge := C.bridge_create()
-	if bridge == nil {
+	tap := newBridgeOnlyTap()
+	if tap == nil {
 		t.Fatal("bridge_create returned nil")
 	}
-	return &Tap{bridge: bridge}
+	return tap
 }
 
 func TestReadWriteRoundTrip(t *testing.T) {
@@ -30,8 +23,7 @@ func TestReadWriteRoundTrip(t *testing.T) {
 
 	// Write samples through the bridge.
 	in := []float32{1.0, 2.0, 3.0, 4.0, 5.0}
-	C.bridge_write_samples(tap.bridge,
-		(*C.float)(unsafe.Pointer(&in[0])), C.uint32_t(len(in)))
+	tap.writeSamples(in)
 
 	out := make([]float32, 10)
 	n, err := tap.Read(out)
@@ -118,8 +110,7 @@ func TestReadReturnDataThenEOF(t *testing.T) {
 	tap := newTestTap(t)
 
 	in := []float32{7.0, 8.0, 9.0}
-	C.bridge_write_samples(tap.bridge,
-		(*C.float)(unsafe.Pointer(&in[0])), C.uint32_t(len(in)))
+	tap.writeSamples(in)
 	tap.Close()
 
 	// First read: should still get the buffered data.

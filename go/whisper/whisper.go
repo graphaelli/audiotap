@@ -4,8 +4,8 @@
 package whisper
 
 /*
-#cgo CFLAGS:  -I${SRCDIR}/../third_party/whisper.cpp/include
-#cgo LDFLAGS: ${SRCDIR}/../build/libwhisper-bundle.a -lstdc++ -lm -framework Accelerate
+#cgo CFLAGS:  -I${SRCDIR}/../../third_party/whisper.cpp/include -I${SRCDIR}/../../third_party/whisper.cpp/ggml/include
+#cgo LDFLAGS: ${SRCDIR}/../../build/libwhisper-bundle.a -lstdc++ -lm -framework Accelerate
 
 #include "whisper_bridge.h"
 #include <stdlib.h>
