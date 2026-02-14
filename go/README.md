@@ -9,7 +9,6 @@ Audio is delivered as interleaved float32 PCM via a lock-free ring buffer, keepi
 - macOS 14.2+ (Sonoma)
 - Go 1.22+
 - The C library must be built first (`make -C .. build/libaudiotap.a`)
-- For the transcribe command: [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and a GGML model
 
 ## Building
 
@@ -17,16 +16,11 @@ Audio is delivered as interleaved float32 PCM via a lock-free ring buffer, keepi
 # Build the C static library (required for all Go code)
 make -C .. build/libaudiotap.a
 
+# Build the capture_both-go example (default target)
+make
+
 # Build and run the bridge tests
 make test-bridge
-
-# Fetch whisper.cpp, build it, download a model, and build the transcribe binary
-make deps
-make model
-make transcribe-go
-
-# Build the capture_both example
-make capture_both-go
 ```
 
 ## Usage
@@ -96,35 +90,13 @@ ffplay -f f32le -ar 48000 -ac 2 system.pcm
 ffplay -f f32le -ar 48000 -ac 1 mic.pcm
 ```
 
-### transcribe-go
-
-Captures live audio and prints speech-to-text output using whisper.cpp:
-
-```sh
-make deps model transcribe-go
-../build/transcribe-go -model ../models/ggml-base.en.bin -source mic
-../build/transcribe-go -model ../models/ggml-base.en.bin -source system
-```
-
-Flags:
-
-| Flag | Default | Description |
-|---|---|---|
-| `-model` | `models/ggml-base.en.bin` | Path to whisper GGML model |
-| `-source` | `mic` | Audio source: `mic` or `system` |
-| `-lang` | `en` | Language code (or `auto`) |
-| `-translate` | `false` | Translate to English |
-| `-chunk` | `5s` | Audio chunk duration per whisper pass |
-
 ## Architecture
 
 ```
 audiotap.go          Go bindings (CGO → libaudiotap.a)
 audiotap_test.go     Go-level tests (ring buffer round-trip, lifecycle)
 bridge.c / bridge.h  Lock-free SPSC ring buffer + self-pipe for blocking reads
-whisper/             Thin CGO wrapper around whisper.cpp
 cmd/capture_both/    Audio capture to PCM files
-cmd/transcribe/      Live transcription CLI
 tests/test_bridge.c  C-level bridge tests (29 tests, 100% coverage)
 ```
 
