@@ -18,6 +18,11 @@ void bridge_close(bridge_state_t *state);
 // Returns the number of floats copied, 0 on close, -1 on error.
 int bridge_read(bridge_state_t *state, float *dst, uint32_t max_floats);
 
+// Write samples into the ring buffer (same path as the audio callback).
+// Useful for testing and for injecting synthetic audio.
+void bridge_write_samples(bridge_state_t *state,
+    const float *samples, uint32_t count);
+
 // Convenience constructors that wire bridge_callback as the audiotap callback.
 audiotap_t *bridge_create_system(bridge_state_t *state,
     const pid_t *pids, uint32_t pid_count,

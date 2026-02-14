@@ -182,7 +182,9 @@ func (t *Tap) Close() error {
 		t.closed.Store(true)
 		runtime.SetFinalizer(t, nil)
 		C.bridge_close(t.bridge)
-		C.audiotap_destroy(t.tap) // stops callback before returning
+		if t.tap != nil {
+			C.audiotap_destroy(t.tap) // stops callback before returning
+		}
 		C.bridge_destroy(t.bridge)
 	})
 	return nil

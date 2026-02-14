@@ -117,6 +117,11 @@ int bridge_read(bridge_state_t *s, float *dst, uint32_t max_floats) {
     }
 }
 
+void bridge_write_samples(bridge_state_t *s,
+    const float *samples, uint32_t count) {
+    bridge_callback(samples, count, 1, 0, s);
+}
+
 // --- Convenience constructors ---
 
 audiotap_t *bridge_create_system(bridge_state_t *state,
