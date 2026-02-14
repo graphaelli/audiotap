@@ -5,7 +5,11 @@ LDFLAGS = -framework CoreAudio -framework AudioToolbox -framework CoreFoundation
 DYLIB_FLAGS = -dynamiclib -install_name @rpath/libaudiotap.dylib
 COV_FLAGS = -fprofile-instr-generate -fcoverage-mapping
 
-.PHONY: all clean examples test coverage
+WHISPER_DIR   = third_party/whisper.cpp
+WHISPER_BUILD = $(WHISPER_DIR)/build
+NPROC         = $(shell sysctl -n hw.logicalcpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+
+.PHONY: all clean examples test coverage deps model transcribe
 
 all: build/libaudiotap.dylib
 
@@ -68,6 +72,48 @@ coverage: test
 	@echo ""
 	@echo "=== Coverage: audiotap_permission.m ==="
 	@xcrun llvm-cov report build/test_audiotap_permission -instr-profile=build/test_permission.profdata -sources src/audiotap_permission.m
+
+# --- Static library (for Go / CGO linking) ---
+
+OBJS = build/audiotap_system.o build/audiotap_mic.o build/audiotap_common.o build/audiotap_permission.o
+
+build/libaudiotap.a: $(OBJS)
+	ar rcs $@ $^
+
+# --- whisper.cpp dependency ---
+
+deps: $(WHISPER_BUILD)/src/libwhisper.a
+
+$(WHISPER_DIR)/CMakeLists.txt:
+	git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git $(WHISPER_DIR)
+
+$(WHISPER_BUILD)/src/libwhisper.a: $(WHISPER_DIR)/CMakeLists.txt
+	cmake -B $(WHISPER_BUILD) -S $(WHISPER_DIR) \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_SHARED_LIBS=OFF \
+		-DWHISPER_BUILD_EXAMPLES=OFF \
+		-DWHISPER_BUILD_TESTS=OFF \
+		-DGGML_METAL=OFF
+	cmake --build $(WHISPER_BUILD) --config Release -j$(NPROC)
+
+# Bundle all whisper.cpp static libs into one archive for easy linking.
+build/libwhisper-bundle.a: $(WHISPER_BUILD)/src/libwhisper.a
+	libtool -static -o $@ $$(find $(WHISPER_BUILD) -name '*.a')
+
+# --- Whisper model ---
+
+model: models/ggml-base.en.bin
+
+models/ggml-base.en.bin:
+	@mkdir -p models
+	curl -L -o $@ https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+
+# --- Go transcribe binary ---
+
+transcribe: build/transcribe
+
+build/transcribe: build/libaudiotap.a build/libwhisper-bundle.a $(wildcard *.go whisper/*.go cmd/transcribe/*.go)
+	go build -o $@ ./cmd/transcribe
 
 clean:
 	rm -rf build/ *.profraw *.profdata
