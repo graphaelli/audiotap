@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -Wall -Wextra -O2 -Iinclude
+CFLAGS = -Wall -Wextra -Werror -O2 -Iinclude
 OBJCFLAGS = $(CFLAGS) -fobjc-arc
 LDFLAGS = -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -framework Foundation -framework AVFoundation
 DYLIB_FLAGS = -dynamiclib -install_name @rpath/libaudiotap.dylib
