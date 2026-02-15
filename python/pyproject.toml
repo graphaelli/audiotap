@@ -3,13 +3,13 @@ name = "audiotap"
 version = "0.1.0"
 description = "Python bindings for libaudiotap — capture system audio and microphone on macOS"
 requires-python = ">=3.10"
-license = "MIT"
+license = "Apache-2.0"
 readme = "README.md"
 keywords = ["audio", "capture", "macos", "system-audio", "microphone", "coreaudio"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
