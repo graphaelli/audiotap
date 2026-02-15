@@ -163,6 +163,7 @@ OSStatus AudioObjectGetPropertyData(AudioObjectID inObjectID,
 {
     (void)inQualifierDataSize;
     (void)inQualifierData;
+    (void)ioDataSize;
 
     if (inAddress->mSelector == kAudioHardwarePropertyProcessObjectList) {
         if (mock_get_property_data_fail)
