@@ -19,6 +19,9 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
 ]
 
+[project.scripts]
+audiotap-capture-both = "audiotap.examples.capture_both:_cli"
+
 [project.urls]
 Homepage = "https://github.com/graphaelli/audiotap"
 Repository = "https://github.com/graphaelli/audiotap"
