@@ -22,7 +22,7 @@ capture_both: $(BUILD)/libaudiotap.dylib sync
 
 # --- Tests ---
 
-test: sync
+test: $(BUILD)/libaudiotap.dylib sync
 	uv run pytest tests/ -v
 
 # --- Coverage ---

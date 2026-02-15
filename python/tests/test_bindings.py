@@ -10,6 +10,15 @@ import pytest
 from audiotap import _bindings
 
 
+def _library_available() -> bool:
+    """Check whether the real libaudiotap shared library can be found."""
+    try:
+        _bindings._find_library()
+        return True
+    except OSError:
+        return False
+
+
 def test_callback_type_is_callable():
     """AUDIOTAP_CALLBACK should be a ctypes function pointer type."""
     assert issubclass(_bindings.AUDIOTAP_CALLBACK, ctypes._CFuncPtr)
@@ -66,3 +75,30 @@ def test_load_sets_argtypes():
     assert lib.audiotap_create_system.argtypes is not None
     assert lib.audiotap_create_mic.argtypes is not None
     assert lib.audiotap_start.argtypes is not None
+
+
+# --- Integration: load the real shared library ---
+
+
+@pytest.mark.skipif(not _library_available(), reason="libaudiotap not built")
+def test_load_real_library():
+    """Loading the real library should resolve all expected symbols."""
+    lib = _bindings.load()
+
+    # Every symbol declared in audiotap.h must be present.  ctypes raises
+    # AttributeError from dlsym if a symbol is missing, so load() would
+    # already have failed — but enumerate them explicitly so a future
+    # addition to load() that isn't backed by C code is caught too.
+    expected = [
+        "audiotap_create_system",
+        "audiotap_create_mic",
+        "audiotap_start",
+        "audiotap_stop",
+        "audiotap_destroy",
+        "audiotap_mic_permission_status",
+        "audiotap_request_mic_permission",
+        "audiotap_error_string",
+        "audiotap_is_running",
+    ]
+    for name in expected:
+        assert hasattr(lib, name), f"missing symbol: {name}"
