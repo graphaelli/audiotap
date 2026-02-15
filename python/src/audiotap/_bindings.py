@@ -59,19 +59,25 @@ def _find_library() -> str:
     if env:
         return env
 
-    # 2. Adjacent to repo root (build/libaudiotap.dylib)
+    # 2. Bundled with the package (pip-installed wheel)
+    bundled = Path(__file__).parent / "libaudiotap.dylib"
+    if bundled.exists():
+        return str(bundled)
+
+    # 3. Adjacent to repo root (build/libaudiotap.dylib)
     repo_root = Path(__file__).resolve().parents[3]  # python/src/audiotap -> repo
     build_lib = repo_root / "build" / "libaudiotap.dylib"
     if build_lib.exists():
         return str(build_lib)
 
-    # 3. System search via ctypes
+    # 4. System search via ctypes
     found = ctypes.util.find_library("audiotap")
     if found:
         return found
 
     raise OSError(
         "Cannot find libaudiotap.dylib. Either:\n"
+        "  - pip install audiotap (includes the library)\n"
         "  - Set LIBAUDIOTAP_PATH to the full path\n"
         "  - Run `make` in the audiotap repo root so build/libaudiotap.dylib exists\n"
         "  - Install the library system-wide"
