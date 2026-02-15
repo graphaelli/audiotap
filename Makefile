@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -Wall -Wextra -O2 -Iinclude
+CFLAGS = -Wall -Wextra -Werror -O2 -Iinclude
 OBJCFLAGS = $(CFLAGS) -fobjc-arc
 LDFLAGS = -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -framework Foundation -framework AVFoundation
 DYLIB_FLAGS = -dynamiclib -install_name @rpath/libaudiotap.dylib
@@ -68,6 +68,13 @@ coverage: test
 	@echo ""
 	@echo "=== Coverage: audiotap_permission.m ==="
 	@xcrun llvm-cov report build/test_audiotap_permission -instr-profile=build/test_permission.profdata -sources src/audiotap_permission.m
+
+# --- Static library (for Go / CGO linking) ---
+
+OBJS = build/audiotap_system.o build/audiotap_mic.o build/audiotap_common.o build/audiotap_permission.o
+
+build/libaudiotap.a: $(OBJS)
+	ar rcs $@ $^
 
 clean:
 	rm -rf build/ *.profraw *.profdata

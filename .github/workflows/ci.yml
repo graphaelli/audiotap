@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests & Coverage
+    # Runs automatically on push to main and PRs from contributors.
+    # PRs from forks require approval via the Actions tab.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+
+      - name: C tests and coverage
+        run: make coverage
+
+      - name: Go bridge tests
+        run: make test-bridge
+        working-directory: go
+
+      - name: Go tests and coverage
+        run: make coverage
+        working-directory: go
