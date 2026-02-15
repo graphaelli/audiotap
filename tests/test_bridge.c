@@ -61,7 +61,7 @@ static int tests_passed = 0;
 // Mock audiotap functions (bridge_create_system/mic call these)
 // ============================================================================
 
-#include "../../include/audiotap.h"
+#include "../include/audiotap.h"
 
 // Minimal definition so we can return a pointer.
 struct audiotap_t { int dummy; };

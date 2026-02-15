@@ -5,7 +5,7 @@ LDFLAGS = -framework CoreAudio -framework AudioToolbox -framework CoreFoundation
 DYLIB_FLAGS = -dynamiclib -install_name @rpath/libaudiotap.dylib
 COV_FLAGS = -fprofile-instr-generate -fcoverage-mapping
 
-.PHONY: all clean examples test coverage
+.PHONY: all clean examples test coverage capture_both-go test-go test-bridge coverage-go
 
 all: build/libaudiotap.dylib
 
@@ -75,6 +75,27 @@ OBJS = build/audiotap_system.o build/audiotap_mic.o build/audiotap_common.o buil
 
 build/libaudiotap.a: $(OBJS)
 	ar rcs $@ $^
+
+# --- Go bindings ---
+
+capture_both-go: build/capture_both-go
+
+build/capture_both-go: build/libaudiotap.a $(wildcard *.go cmd/capture_both/*.go)
+	go build -o $@ ./cmd/capture_both
+
+test-go: build/libaudiotap.a test-bridge
+	go test ./...
+
+test-bridge: build/test_bridge
+	@LLVM_PROFILE_FILE=build/test_bridge.profraw ./build/test_bridge
+
+build/test_bridge: tests/test_bridge.c bridge.c bridge.h include/audiotap.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Wno-unused-variable -O0 -g $(COV_FLAGS) -o $@ tests/test_bridge.c -lpthread
+
+coverage-go: build/libaudiotap.a
+	go test -coverprofile=build/go-coverage.out ./...
+	go tool cover -func=build/go-coverage.out
 
 clean:
 	rm -rf build/ *.profraw *.profdata
