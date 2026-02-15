@@ -1,0 +1,67 @@
+name: CI / ok-to-test
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  test:
+    name: Tests & Coverage
+    # Triggered by a contributor commenting '/ok-to-test' on a pull request.
+    if: >-
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/ok-to-test') &&
+      contains(fromJSON('["MEMBER", "OWNER", "COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: macos-latest
+    steps:
+      - name: Get PR head SHA
+        id: pr
+        run: |
+          echo "sha=$(gh pr view ${{ github.event.issue.number }} --json headRefSha -q .headRefSha)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Report pending status
+        run: |
+          gh api repos/${{ github.repository }}/statuses/${{ steps.pr.outputs.sha }} \
+            -f state=pending \
+            -f context="CI / ok-to-test" \
+            -f description="Running tests..." \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/merge
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+
+      - name: C tests and coverage
+        run: make coverage
+
+      - name: Go bridge tests
+        run: make test-bridge
+        working-directory: go
+
+      - name: Go tests and coverage
+        run: make coverage
+        working-directory: go
+
+      - name: Report final status
+        if: always()
+        run: |
+          gh api repos/${{ github.repository }}/statuses/${{ steps.pr.outputs.sha }} \
+            -f state="${{ job.status == 'success' && 'success' || 'failure' }}" \
+            -f context="CI / ok-to-test" \
+            -f description="Tests ${{ job.status }}" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
