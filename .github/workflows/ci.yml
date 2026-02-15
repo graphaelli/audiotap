@@ -48,5 +48,5 @@ jobs:
       - uses: astral-sh/setup-uv@v5
 
       - name: Run tests
-        run: uv run pytest tests/ -v
+        run: make test
         working-directory: python
