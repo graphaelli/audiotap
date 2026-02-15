@@ -1,4 +1,6 @@
 *.pcm
+*.dylib
 build/
 __pycache__/
 models/
+python/dist/

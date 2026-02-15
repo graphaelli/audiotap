@@ -1,9 +1,28 @@
 [project]
 name = "audiotap"
-version = "0.1.0"
+version = "0.0.1"
 description = "Python bindings for libaudiotap — capture system audio and microphone on macOS"
 requires-python = ">=3.10"
-license = "MIT"
+license = "Apache-2.0"
+readme = "README.md"
+keywords = ["audio", "capture", "macos", "system-audio", "microphone", "coreaudio"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
+]
+
+[project.urls]
+Homepage = "https://github.com/graphaelli/audiotap"
+Repository = "https://github.com/graphaelli/audiotap"
+Issues = "https://github.com/graphaelli/audiotap/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -11,6 +30,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/audiotap"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
 
 [dependency-groups]
 dev = ["pytest>=8"]
