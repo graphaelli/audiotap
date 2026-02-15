@@ -4,7 +4,7 @@
 Writes raw float32 PCM to system.pcm and mic.pcm.
 
 Usage:
-    uv run examples/capture_both.py [duration_seconds]
+    audiotap-capture-both [duration_seconds]
 """
 
 from __future__ import annotations
@@ -122,5 +122,9 @@ def main() -> int:
     return 0
 
 
-if __name__ == "__main__":
+def _cli() -> None:
     sys.exit(main())
+
+
+if __name__ == "__main__":
+    _cli()

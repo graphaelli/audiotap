@@ -18,7 +18,7 @@ sync:
 # --- Example ---
 
 capture_both: $(BUILD)/libaudiotap.dylib sync
-	uv run examples/capture_both.py
+	uv run -m audiotap.examples.capture_both
 
 # --- Tests ---
 
