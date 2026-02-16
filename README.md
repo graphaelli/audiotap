@@ -113,11 +113,7 @@ tap, err := audiotap.NewSystemTap(audiotap.SystemConfig{
 })
 ```
 
-The Go bindings require the C static library to be built first:
-
-```sh
-make build/libaudiotap.a
-```
+CGO compiles the C/Objective-C sources automatically during `go build` — no manual `make` step is needed.
 
 ## API
 
