@@ -8,25 +8,26 @@ Audio is delivered as interleaved float32 PCM via a lock-free ring buffer, keepi
 
 - macOS 14.2+ (Sonoma)
 - Go 1.22+
-- The C library must be built first (`make -C .. build/libaudiotap.a`)
 
 ## Building
 
-```sh
-# Build the C static library (required for all Go code)
-make -C .. build/libaudiotap.a
+CGO compiles the C/Objective-C sources automatically during `go build` — no manual `make` step is needed.
 
-# Build the capture_both-go example (default target)
+```sh
+# Build the capture_both-go example
 make
 
 # Build and run the bridge tests
 make test-bridge
+
+# Run all Go tests
+make test
 ```
 
 ## Usage
 
 ```go
-import "github.com/graphaelli/audiotap"
+import "github.com/graphaelli/audiotap/go"
 
 // Capture from microphone
 tap, err := audiotap.NewMicTap(audiotap.MicConfig{
@@ -93,9 +94,10 @@ ffplay -f f32le -ar 48000 -ac 1 mic.pcm
 ## Architecture
 
 ```
-audiotap.go          Go bindings (CGO → libaudiotap.a)
+audiotap.go          Go bindings (CGO, compiles C sources directly)
 audiotap_test.go     Go-level tests (ring buffer round-trip, lifecycle)
 bridge.c / bridge.h  Lock-free SPSC ring buffer + self-pipe for blocking reads
+cgo_audiotap_*.c/.m  Thin wrappers that #include ../src/* for CGO compilation
 cmd/capture_both/    Audio capture to PCM files
 tests/test_bridge.c  C-level bridge tests (29 tests, 100% coverage)
 ```

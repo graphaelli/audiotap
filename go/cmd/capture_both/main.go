@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/graphaelli/audiotap"
+	"github.com/graphaelli/audiotap/go"
 )
 
 const (
