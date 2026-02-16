@@ -25,6 +25,9 @@ make test
 ```
 
 ## Usage
+```
+go get "github.com/graphaelli/audiotap"
+```
 
 ```go
 import "github.com/graphaelli/audiotap/go"

@@ -71,7 +71,7 @@ ffplay -f f32le -ar 48000 -ac 1 mic.pcm
 
 ## Bindings
 
-- **[Go](go/)** — `go get github.com/graphaelli/audiotap/go`
+- **[Go](go/)** — `go get github.com/graphaelli/audiotap`
 - **[Python](python/)** — `pip install audiotap`
 
 ## API
