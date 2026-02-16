@@ -69,7 +69,7 @@ coverage: test
 	@echo "=== Coverage: audiotap_permission.m ==="
 	@xcrun llvm-cov report build/test_audiotap_permission -instr-profile=build/test_permission.profdata -sources src/audiotap_permission.m
 
-# --- Static library (for Go / CGO linking) ---
+# --- Static library (for external CGO linking) ---
 
 OBJS = build/audiotap_system.o build/audiotap_mic.o build/audiotap_common.o build/audiotap_permission.o
 
@@ -80,21 +80,21 @@ build/libaudiotap.a: $(OBJS)
 
 capture_both-go: build/capture_both-go
 
-build/capture_both-go: build/libaudiotap.a $(wildcard *.go cmd/capture_both/*.go)
-	go build -o $@ ./cmd/capture_both
+build/capture_both-go: $(wildcard go/*.go go/*.c go/*.h go/*.m go/cmd/capture_both/*.go) include/audiotap.h $(wildcard src/*)
+	go build -o $@ ./go/cmd/capture_both
 
-test-go: build/libaudiotap.a test-bridge
-	go test ./...
+test-go: test-bridge
+	go test ./go/...
 
 test-bridge: build/test_bridge
 	@LLVM_PROFILE_FILE=build/test_bridge.profraw ./build/test_bridge
 
-build/test_bridge: tests/test_bridge.c bridge.c bridge.h include/audiotap.h
+build/test_bridge: go/tests/test_bridge.c go/bridge.c go/bridge.h include/audiotap.h
 	@mkdir -p build
-	$(CC) $(CFLAGS) -Wno-unused-variable -O0 -g $(COV_FLAGS) -o $@ tests/test_bridge.c -lpthread
+	$(CC) $(CFLAGS) -Wno-unused-variable -O0 -g $(COV_FLAGS) -o $@ go/tests/test_bridge.c -lpthread
 
-coverage-go: build/libaudiotap.a
-	go test -coverprofile=build/go-coverage.out ./...
+coverage-go:
+	go test -coverprofile=build/go-coverage.out ./go/...
 	go tool cover -func=build/go-coverage.out
 
 clean:

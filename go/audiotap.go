@@ -7,7 +7,7 @@
 package audiotap
 
 /*
-#cgo CFLAGS:  -I${SRCDIR}/include -I${SRCDIR}/src -fobjc-arc -fblocks
+#cgo CFLAGS:  -I${SRCDIR}/../include -I${SRCDIR}/../src -fobjc-arc -fblocks
 #cgo LDFLAGS: -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -framework Foundation -framework AVFoundation -lobjc
 
 #include "bridge.h"

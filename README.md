@@ -72,11 +72,11 @@ ffplay -f f32le -ar 48000 -ac 1 mic.pcm
 ### Go
 
 ```sh
-go get github.com/graphaelli/audiotap
+go get github.com/graphaelli/audiotap/go
 ```
 
 ```go
-import "github.com/graphaelli/audiotap"
+import "github.com/graphaelli/audiotap/go"
 
 // Capture from microphone
 tap, err := audiotap.NewMicTap(audiotap.MicConfig{
@@ -152,9 +152,9 @@ src/audiotap_mic.c          Mic capture, device-change listener, channel convers
 src/audiotap_system.m       System tap (ObjC for CATapDescription)
 src/audiotap_permission.m   AVCaptureDevice permission wrapper
 src/audiotap_internal.h     Shared struct and internal declarations
-audiotap.go                 Go bindings (CGO → libaudiotap.a)
-bridge.c / bridge.h         Lock-free SPSC ring buffer + self-pipe for blocking reads
-cmd/capture_both/           Go example: audio capture to PCM files
+go/audiotap.go              Go bindings (CGO, compiles C sources directly)
+go/bridge.c / bridge.h      Lock-free SPSC ring buffer + self-pipe for blocking reads
+go/cmd/capture_both/        Go example: audio capture to PCM files
 ```
 
 ### System audio capture
