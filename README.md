@@ -69,51 +69,10 @@ ffplay -f f32le -ar 48000 -ac 2 system.pcm
 ffplay -f f32le -ar 48000 -ac 1 mic.pcm
 ```
 
-### Go
+## Bindings
 
-```sh
-go get github.com/graphaelli/audiotap/go
-```
-
-```go
-import "github.com/graphaelli/audiotap/go"
-
-// Capture from microphone
-tap, err := audiotap.NewMicTap(audiotap.MicConfig{
-    SampleRate: 16000,
-    Channels:   1,
-})
-if err != nil {
-    log.Fatal(err)
-}
-defer tap.Close()
-
-if err := tap.Start(); err != nil {
-    log.Fatal(err)
-}
-
-buf := make([]float32, 16000) // 1 second at 16 kHz mono
-for {
-    n, err := tap.Read(buf)
-    if err != nil {
-        break
-    }
-    // process buf[:n] ...
-}
-```
-
-System audio capture works the same way with `NewSystemTap`:
-
-```go
-tap, err := audiotap.NewSystemTap(audiotap.SystemConfig{
-    SampleRate: 48000,
-    Channels:   2,
-    PIDs:       nil,   // nil = all processes
-    Mute:       false, // true to silence speakers
-})
-```
-
-CGO compiles the C/Objective-C sources automatically during `go build` — no manual `make` step is needed.
+- **[Go](go/)** — `go get github.com/graphaelli/audiotap/go`
+- **[Python](python/)** — `pip install audiotap`
 
 ## API
 
@@ -129,20 +88,6 @@ CGO compiles the C/Objective-C sources automatically during `go build` — no ma
 | `audiotap_error_string(status)` | Human-readable string for an OSStatus error code |
 | `audiotap_is_running(tap)` | Check if a tap is currently capturing |
 
-### Go API
-
-| Type / Function | Description |
-|---|---|
-| `NewSystemTap(SystemConfig)` | Create a system audio tap |
-| `NewMicTap(MicConfig)` | Create a microphone tap |
-| `(*Tap).Start()` | Begin capturing audio |
-| `(*Tap).Stop()` | Pause capture without releasing resources |
-| `(*Tap).Read([]float32)` | Block until audio is available; returns `io.EOF` after Close |
-| `(*Tap).Close()` | Stop capture and release all resources |
-| `(*Tap).IsRunning()` | Check if the tap is currently capturing |
-| `MicPermissionStatus()` | Check microphone permission (non-blocking) |
-| `RequestMicPermission()` | Prompt for microphone permission (blocking) |
-
 ## Architecture
 
 ```
@@ -152,9 +97,6 @@ src/audiotap_mic.c          Mic capture, device-change listener, channel convers
 src/audiotap_system.m       System tap (ObjC for CATapDescription)
 src/audiotap_permission.m   AVCaptureDevice permission wrapper
 src/audiotap_internal.h     Shared struct and internal declarations
-go/audiotap.go              Go bindings (CGO, compiles C sources directly)
-go/bridge.c / bridge.h      Lock-free SPSC ring buffer + self-pipe for blocking reads
-go/cmd/capture_both/        Go example: audio capture to PCM files
 ```
 
 ### System audio capture

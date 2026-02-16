@@ -5,7 +5,7 @@ LDFLAGS = -framework CoreAudio -framework AudioToolbox -framework CoreFoundation
 DYLIB_FLAGS = -dynamiclib -install_name @rpath/libaudiotap.dylib
 COV_FLAGS = -fprofile-instr-generate -fcoverage-mapping
 
-.PHONY: all clean examples test coverage capture_both-go test-go test-bridge coverage-go
+.PHONY: all clean examples test coverage
 
 all: build/libaudiotap.dylib
 
@@ -69,33 +69,12 @@ coverage: test
 	@echo "=== Coverage: audiotap_permission.m ==="
 	@xcrun llvm-cov report build/test_audiotap_permission -instr-profile=build/test_permission.profdata -sources src/audiotap_permission.m
 
-# --- Static library (for external CGO linking) ---
+# --- Static library (for Go / CGO linking) ---
 
 OBJS = build/audiotap_system.o build/audiotap_mic.o build/audiotap_common.o build/audiotap_permission.o
 
 build/libaudiotap.a: $(OBJS)
 	ar rcs $@ $^
-
-# --- Go bindings ---
-
-capture_both-go: build/capture_both-go
-
-build/capture_both-go: $(wildcard go/*.go go/*.c go/*.h go/*.m go/cmd/capture_both/*.go) include/audiotap.h $(wildcard src/*)
-	go build -o $@ ./go/cmd/capture_both
-
-test-go: test-bridge
-	go test ./go/...
-
-test-bridge: build/test_bridge
-	@LLVM_PROFILE_FILE=build/test_bridge.profraw ./build/test_bridge
-
-build/test_bridge: go/tests/test_bridge.c go/bridge.c go/bridge.h include/audiotap.h
-	@mkdir -p build
-	$(CC) $(CFLAGS) -Wno-unused-variable -O0 -g $(COV_FLAGS) -o $@ go/tests/test_bridge.c -lpthread
-
-coverage-go:
-	go test -coverprofile=build/go-coverage.out ./go/...
-	go tool cover -func=build/go-coverage.out
 
 clean:
 	rm -rf build/ *.profraw *.profdata
