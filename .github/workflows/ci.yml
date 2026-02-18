@@ -25,8 +25,39 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Build dylib
+        run: make build/libaudiotap.dylib
+
       - name: C tests and coverage
         run: make coverage
+
+      - name: Generate coverage report
+        if: github.ref == 'refs/heads/main'
+        run: |
+          {
+            echo "=== Coverage: audiotap_mic.c + audiotap_common.c ==="
+            xcrun llvm-cov report build/test_audiotap -instr-profile=build/test.profdata -sources src/audiotap_mic.c src/audiotap_common.c
+            echo ""
+            echo "=== Coverage: audiotap_system.m ==="
+            xcrun llvm-cov report build/test_audiotap_system -instr-profile=build/test_system.profdata -sources src/audiotap_system.m
+            echo ""
+            echo "=== Coverage: audiotap_permission.m ==="
+            xcrun llvm-cov report build/test_audiotap_permission -instr-profile=build/test_permission.profdata -sources src/audiotap_permission.m
+          } > build/coverage-report.txt
+
+      - name: Upload dylib
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: libaudiotap-dylib
+          path: build/libaudiotap.dylib
+
+      - name: Upload coverage report
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: build/coverage-report.txt
 
       - name: Go bridge tests
         run: make test-bridge
