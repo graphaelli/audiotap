@@ -179,8 +179,8 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 	return bars, nil
 }
 
-// renderWaveform returns a terminal line showing the waveform with an
-// inverted-video cursor at the current playback position and the time at right.
+// renderWaveform returns a terminal line showing the waveform with a yellow
+// cursor at the current playback position and the time at right.
 func renderWaveform(bars []rune, progress, total float64) string {
 	cursor := int(progress * float64(len(bars)))
 	if cursor >= len(bars) {
@@ -189,7 +189,7 @@ func renderWaveform(bars []rune, progress, total float64) string {
 	line := make([]byte, 0, len(bars)*4)
 	for i, ch := range bars {
 		if i == cursor {
-			line = append(line, "\033[7m"...)
+			line = append(line, "\033[33m"...)
 			line = append(line, []byte(string(ch))...)
 			line = append(line, "\033[0m"...)
 		} else {
@@ -237,10 +237,9 @@ func main() {
 	if !*noviz {
 		termW := int(C.terminalWidth())
 		if termW > 0 {
-			timeWidth := len(fmt.Sprintf("  %.1fs / %.1fs", seconds, seconds))
-			waveWidth := termW - timeWidth
-			if waveWidth < 10 {
-				waveWidth = 10
+			waveWidth := termW / 4
+			if waveWidth < 30 {
+				waveWidth = 30
 			}
 			if bars, err = computeWaveform(args[0], numFrames, *ac, waveWidth); err != nil {
 				fmt.Fprintf(os.Stderr, "waveform: %v\n", err)
