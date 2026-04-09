@@ -11,6 +11,7 @@ package main
 /*
 #cgo LDFLAGS: -framework CoreAudio -framework AudioToolbox
 #include <AudioToolbox/AudioToolbox.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 typedef struct {
@@ -95,18 +96,113 @@ static int play_f32le(int fd, double sampleRate, uint32_t channels) {
 	AudioQueueDispose(queue, true);
 	return 0;
 }
+
+// terminalWidth returns the terminal column count, or -1 if stdout is not a tty.
+static int terminalWidth(void) {
+	if (!isatty(STDOUT_FILENO)) return -1;
+	struct winsize ws;
+	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0)
+		return (int)ws.ws_col;
+	return 80;
+}
 */
 import "C"
 
 import (
+	"encoding/binary"
 	"flag"
 	"fmt"
+	"io"
+	"math"
 	"os"
+	"time"
 )
+
+// waveChars are the block elements used for amplitude bars, from silence to full.
+const waveChars = " ▁▂▃▄▅▆▇█"
+
+// computeWaveform scans path in small chunks and returns a slice of width runes
+// representing peak amplitude per time column. Memory usage is O(width), not
+// O(file size).
+func computeWaveform(path string, numFrames int64, channels, width int) ([]rune, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	peaks := make([]float64, width)
+	const chunkFrames = 4096
+	buf := make([]byte, chunkFrames*channels*4)
+
+	levels := []rune(waveChars)
+	var framePos int64
+	for {
+		n, err := io.ReadFull(f, buf)
+		numRead := n / (4 * channels)
+		for i := 0; i < numRead; i++ {
+			barIdx := int(framePos * int64(width) / numFrames)
+			if barIdx >= width {
+				barIdx = width - 1
+			}
+			for ch := 0; ch < channels; ch++ {
+				off := (i*channels + ch) * 4
+				bits := binary.LittleEndian.Uint32(buf[off : off+4])
+				s := math.Abs(float64(math.Float32frombits(bits)))
+				if s > peaks[barIdx] {
+					peaks[barIdx] = s
+				}
+			}
+			framePos++
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	maxPeak := 0.0
+	for _, p := range peaks {
+		if p > maxPeak {
+			maxPeak = p
+		}
+	}
+	if maxPeak == 0 {
+		maxPeak = 1
+	}
+
+	bars := make([]rune, width)
+	for i, p := range peaks {
+		// Square-root mapping gives more visual resolution in quieter sections.
+		idx := int(math.Sqrt(p/maxPeak) * float64(len(levels)-1))
+		bars[i] = levels[idx]
+	}
+	return bars, nil
+}
+
+// renderWaveform returns a terminal line showing the waveform with an
+// inverted-video cursor at the current playback position and the time at right.
+func renderWaveform(bars []rune, progress, total float64) string {
+	cursor := int(progress * float64(len(bars)))
+	if cursor >= len(bars) {
+		cursor = len(bars) - 1
+	}
+	line := make([]byte, 0, len(bars)*4)
+	for i, ch := range bars {
+		if i == cursor {
+			line = append(line, "\033[7m"...)
+			line = append(line, []byte(string(ch))...)
+			line = append(line, "\033[0m"...)
+		} else {
+			line = append(line, []byte(string(ch))...)
+		}
+	}
+	return fmt.Sprintf("%s  %.1fs / %.1fs", line, progress*total, total)
+}
 
 func main() {
 	ar := flag.Float64("ar", 48000, "sample rate in Hz")
 	ac := flag.Int("ac", 2, "number of channels")
+	noviz := flag.Bool("noviz", false, "disable waveform visualization")
 	flag.Parse()
 
 	if *ac < 1 {
@@ -116,7 +212,7 @@ func main() {
 
 	args := flag.Args()
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "usage: pcmplay [-ar 48000] [-ac 2] <file.pcm>\n")
+		fmt.Fprintf(os.Stderr, "usage: pcmplay [-ar 48000] [-ac 2] [-noviz] <file.pcm>\n")
 		os.Exit(1)
 	}
 
@@ -136,8 +232,63 @@ func main() {
 	seconds := float64(numFrames) / *ar
 	fmt.Printf("Playing %s (%.1fs, %.0f Hz, %d ch)\n", args[0], seconds, *ar, *ac)
 
-	if rc := C.play_f32le(C.int(f.Fd()), C.double(*ar), C.uint32_t(*ac)); rc != 0 {
-		fmt.Fprintf(os.Stderr, "playback error: OSStatus %d\n", int(rc))
+	// Compute waveform if stdout is a tty and -noviz wasn't set.
+	var bars []rune
+	if !*noviz {
+		termW := int(C.terminalWidth())
+		if termW > 0 {
+			timeWidth := len(fmt.Sprintf("  %.1fs / %.1fs", seconds, seconds))
+			waveWidth := termW - timeWidth
+			if waveWidth < 10 {
+				waveWidth = 10
+			}
+			if bars, err = computeWaveform(args[0], numFrames, *ac, waveWidth); err != nil {
+				fmt.Fprintf(os.Stderr, "waveform: %v\n", err)
+				bars = nil
+			}
+		}
+	}
+
+	play := func() int {
+		return int(C.play_f32le(C.int(f.Fd()), C.double(*ar), C.uint32_t(*ac)))
+	}
+
+	if bars == nil {
+		if rc := play(); rc != 0 {
+			fmt.Fprintf(os.Stderr, "playback error: OSStatus %d\n", rc)
+			os.Exit(1)
+		}
+		return
+	}
+
+	fmt.Print(renderWaveform(bars, 0, seconds))
+
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				p := time.Since(start).Seconds() / seconds
+				if p > 1 {
+					p = 1
+				}
+				fmt.Print("\r" + renderWaveform(bars, p, seconds))
+			}
+		}
+	}()
+
+	rc := play()
+	close(done)
+	fmt.Print("\r" + renderWaveform(bars, 1, seconds))
+	fmt.Println()
+
+	if rc != 0 {
+		fmt.Fprintf(os.Stderr, "playback error: OSStatus %d\n", rc)
 		os.Exit(1)
 	}
 }
