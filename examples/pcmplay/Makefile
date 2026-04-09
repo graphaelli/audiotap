@@ -2,7 +2,7 @@
 
 all: pcmplay
 
-pcmplay:
+pcmplay: $(wildcard *.go)
 	go build -o pcmplay .
 
 clean:
