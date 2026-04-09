@@ -170,10 +170,23 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 		maxPeak = 1
 	}
 
+	// Map to dB relative to the loudest peak, over a 40dB dynamic range.
+	// This spreads out the visual variation even when amplitudes are uniformly
+	// high (e.g. speech), where linear/sqrt scaling collapses everything to ▇█.
+	const rangeDB = 40.0
+	maxDB := 20 * math.Log10(maxPeak)
 	bars := make([]rune, width)
 	for i, p := range peaks {
-		// Square-root mapping gives more visual resolution in quieter sections.
-		idx := int(math.Sqrt(p/maxPeak) * float64(len(levels)-1))
+		var idx int
+		if p > 0 {
+			norm := (20*math.Log10(p) - (maxDB - rangeDB)) / rangeDB
+			if norm < 0 {
+				norm = 0
+			} else if norm > 1 {
+				norm = 1
+			}
+			idx = int(norm * float64(len(levels)-1))
+		}
 		bars[i] = levels[idx]
 	}
 	return bars, nil
