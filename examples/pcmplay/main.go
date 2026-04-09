@@ -2,53 +2,47 @@
 
 // Command pcmplay plays raw PCM files in the format produced by audiotap.
 //
-// Usage mirrors the ffplay commands printed by capture_both:
+// Usage mirrors the playback commands printed by capture_both:
 //
-//	pcmplay -f f32le -ar 48000 -ac 2 system.pcm
-//	pcmplay -f f32le -ar 48000 -ac 1 mic.pcm
-//
-// Build:
-//
-//	go build github.com/graphaelli/audiotap/examples/pcmplay
+//	pcmplay -ar 48000 -ac 2 system.pcm
+//	pcmplay -ar 48000 -ac 1 mic.pcm
 package main
 
 /*
 #cgo LDFLAGS: -framework CoreAudio -framework AudioToolbox
 #include <AudioToolbox/AudioToolbox.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 
 typedef struct {
-	float          *data;
-	uint32_t        totalFrames;
-	uint32_t        channels;
-	uint32_t        curFrame;
-	volatile int    finished;
+	int          fd;
+	uint32_t     channels;
+	volatile int finished;
 } PlayerState;
 
-// outputCallback is called by AudioQueue each time it needs a new buffer.
+// outputCallback reads the next chunk from the file and enqueues it.
 static void outputCallback(void *userdata, AudioQueueRef queue, AudioQueueBufferRef buf) {
 	PlayerState *st = (PlayerState *)userdata;
-	uint32_t remaining = st->totalFrames - st->curFrame;
-	if (remaining == 0) {
-		if (!st->finished) {
-			st->finished = 1;
-			// false = drain already-queued buffers before stopping
-			AudioQueueStop(queue, false);
-		}
+	if (st->finished) return;
+
+	ssize_t n = read(st->fd, buf->mAudioData, buf->mAudioDataBytesCapacity);
+	if (n <= 0) {
+		st->finished = 1;
+		AudioQueueStop(queue, false);
 		return;
 	}
-	uint32_t framesPerBuf = buf->mAudioDataBytesCapacity / (sizeof(float) * st->channels);
-	if (framesPerBuf > remaining) framesPerBuf = remaining;
-	uint32_t bytes = framesPerBuf * st->channels * sizeof(float);
-	memcpy(buf->mAudioData, st->data + (uint64_t)st->curFrame * st->channels, bytes);
-	buf->mAudioDataByteSize = bytes;
-	st->curFrame += framesPerBuf;
+	// Truncate to a whole number of frames.
+	uint32_t frameBytes = sizeof(float) * st->channels;
+	n -= n % frameBytes;
+	if (n == 0) {
+		st->finished = 1;
+		AudioQueueStop(queue, false);
+		return;
+	}
+	buf->mAudioDataByteSize = (uint32_t)n;
 	AudioQueueEnqueueBuffer(queue, buf, 0, NULL);
 }
 
-// isRunningChanged is called when kAudioQueueProperty_IsRunning changes.
+// isRunningChanged fires when the queue starts or stops.
 static void isRunningChanged(void *userdata, AudioQueueRef queue, AudioQueuePropertyID prop) {
 	(void)prop;
 	UInt32 running = 0, size = sizeof(running);
@@ -56,8 +50,8 @@ static void isRunningChanged(void *userdata, AudioQueueRef queue, AudioQueueProp
 	if (!running) *(volatile int *)userdata = 1;
 }
 
-// play_f32le plays interleaved float32-LE samples through the default output device.
-static int play_f32le(const float *data, uint32_t frames, double sampleRate, uint32_t channels) {
+// play_f32le plays interleaved float32-LE samples from fd through the default output device.
+static int play_f32le(int fd, double sampleRate, uint32_t channels) {
 	AudioStreamBasicDescription fmt = {
 		.mSampleRate       = sampleRate,
 		.mFormatID         = kAudioFormatLinearPCM,
@@ -68,13 +62,7 @@ static int play_f32le(const float *data, uint32_t frames, double sampleRate, uin
 		.mFramesPerPacket  = 1,
 		.mBytesPerPacket   = sizeof(float) * channels,
 	};
-	PlayerState state = {
-		.data        = (float *)data,
-		.totalFrames = frames,
-		.channels    = channels,
-		.curFrame    = 0,
-		.finished    = 0,
-	};
+	PlayerState state = { .fd = fd, .channels = channels, .finished = 0 };
 	volatile int stopped = 0;
 
 	AudioQueueRef queue;
@@ -114,19 +102,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"unsafe"
 )
 
 func main() {
-	format := flag.String("f", "f32le", "sample format (only f32le supported)")
 	ar := flag.Float64("ar", 48000, "sample rate in Hz")
 	ac := flag.Int("ac", 2, "number of channels")
 	flag.Parse()
 
-	if *format != "f32le" {
-		fmt.Fprintf(os.Stderr, "unsupported format %q: only f32le is supported\n", *format)
-		os.Exit(1)
-	}
 	if *ac < 1 {
 		fmt.Fprintf(os.Stderr, "-ac must be >= 1\n")
 		os.Exit(1)
@@ -134,36 +116,27 @@ func main() {
 
 	args := flag.Args()
 	if len(args) != 1 {
-		fmt.Fprintf(os.Stderr, "usage: pcmplay [-f f32le] [-ar 48000] [-ac 2] <file.pcm>\n")
+		fmt.Fprintf(os.Stderr, "usage: pcmplay [-ar 48000] [-ac 2] <file.pcm>\n")
 		os.Exit(1)
 	}
 
-	raw, err := os.ReadFile(args[0])
+	f, err := os.Open(args[0])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	raw = raw[:len(raw)&^3] // trim to a multiple of 4 bytes
-	if len(raw) == 0 {
-		fmt.Fprintf(os.Stderr, "%s is empty\n", args[0])
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-
-	numFrames := len(raw) / 4 / *ac
+	numFrames := fi.Size() / int64(4**ac)
 	seconds := float64(numFrames) / *ar
 	fmt.Printf("Playing %s (%.1fs, %.0f Hz, %d ch)\n", args[0], seconds, *ar, *ac)
 
-	// Copy into C-managed memory so AudioQueue's threads can safely read it
-	// after this function returns to the Go runtime.
-	cBuf := C.malloc(C.size_t(len(raw)))
-	if cBuf == nil {
-		fmt.Fprintln(os.Stderr, "out of memory")
-		os.Exit(1)
-	}
-	defer C.free(cBuf)
-	C.memcpy(cBuf, unsafe.Pointer(&raw[0]), C.size_t(len(raw)))
-
-	if rc := C.play_f32le((*C.float)(cBuf), C.uint32_t(numFrames), C.double(*ar), C.uint32_t(*ac)); rc != 0 {
+	if rc := C.play_f32le(C.int(f.Fd()), C.double(*ar), C.uint32_t(*ac)); rc != 0 {
 		fmt.Fprintf(os.Stderr, "playback error: OSStatus %d\n", int(rc))
 		os.Exit(1)
 	}
