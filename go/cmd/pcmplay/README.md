@@ -11,14 +11,14 @@ using the same flags as `ffplay`.
 ## Build
 
 ```
-make
+make -C go pcmplay
 ```
 
 ## Usage
 
 ```
-pcmplay -ar 48000 -ac 2 system.pcm
-pcmplay -ar 48000 -ac 1 mic.pcm
+./build/pcmplay -ar 48000 -ac 2 system.pcm
+./build/pcmplay -ar 48000 -ac 1 mic.pcm
 ```
 
 | Flag     | Default | Description                          |
