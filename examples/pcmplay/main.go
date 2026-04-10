@@ -121,21 +121,24 @@ import (
 // waveChars are the block elements used for amplitude bars, from silence to full.
 const waveChars = " ▁▂▃▄▅▆▇█"
 
-// computeWaveform scans path in small chunks and returns a slice of width runes
-// representing peak amplitude per time column. Memory usage is O(width), not
-// O(file size).
-func computeWaveform(path string, numFrames int64, channels, width int) ([]rune, error) {
+// computeWaveform scans path in small chunks and returns one RMS bar per
+// second of audio. This keeps each bar representing a short time window
+// (1 s) so variation in speech, pauses, and silence is visible.
+func computeWaveform(path string, numFrames int64, channels int, sampleRate float64) ([]rune, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	// Use RMS (not peak) per bar: peak over a 43-second window is always near
-	// max for speech, so there's no variation. RMS reflects average loudness,
-	// which varies meaningfully across sentences, pauses, and silence.
-	sumSq := make([]float64, width)
-	counts := make([]int, width)
+	framesPerBar := int64(sampleRate) // 1 bar = 1 second
+	numBars := int((numFrames + framesPerBar - 1) / framesPerBar)
+	if numBars < 1 {
+		numBars = 1
+	}
+
+	sumSq := make([]float64, numBars)
+	counts := make([]int, numBars)
 	const chunkFrames = 4096
 	buf := make([]byte, chunkFrames*channels*4)
 
@@ -145,9 +148,9 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 		n, err := io.ReadFull(f, buf)
 		numRead := n / (4 * channels)
 		for i := 0; i < numRead; i++ {
-			barIdx := int(framePos * int64(width) / numFrames)
-			if barIdx >= width {
-				barIdx = width - 1
+			barIdx := int(framePos / framesPerBar)
+			if barIdx >= numBars {
+				barIdx = numBars - 1
 			}
 			for ch := 0; ch < channels; ch++ {
 				off := (i*channels + ch) * 4
@@ -163,7 +166,7 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 		}
 	}
 
-	rms := make([]float64, width)
+	rms := make([]float64, numBars)
 	maxRMS := 0.0
 	for i, ss := range sumSq {
 		if counts[i] > 0 {
@@ -180,7 +183,7 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 	// dB normalization relative to the loudest bar, 40dB dynamic range.
 	const rangeDB = 40.0
 	maxDB := 20 * math.Log10(maxRMS)
-	bars := make([]rune, width)
+	bars := make([]rune, numBars)
 	for i, r := range rms {
 		var idx int
 		if r > 0 {
@@ -197,16 +200,37 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 	return bars, nil
 }
 
-// renderWaveform returns a terminal line showing the waveform with a yellow
-// cursor at the current playback position and the time at right.
-func renderWaveform(bars []rune, progress, total float64) string {
-	cursor := int(progress * float64(len(bars)))
-	if cursor >= len(bars) {
-		cursor = len(bars) - 1
+// renderWaveform shows a scrolling window of displayWidth bars from the
+// full waveform, with the current position highlighted in yellow.
+func renderWaveform(bars []rune, progress, total float64, displayWidth int) string {
+	totalBars := len(bars)
+	curBar := int(progress * float64(totalBars))
+	if curBar >= totalBars {
+		curBar = totalBars - 1
 	}
-	line := make([]byte, 0, len(bars)*4)
-	for i, ch := range bars {
-		if i == cursor {
+
+	// Pin the cursor at ~1/4 from the left; clamp at file boundaries.
+	cursorCol := displayWidth / 4
+	winStart := curBar - cursorCol
+	if winStart < 0 {
+		winStart = 0
+	}
+	if winStart+displayWidth > totalBars {
+		winStart = totalBars - displayWidth
+		if winStart < 0 {
+			winStart = 0
+		}
+	}
+	cursorCol = curBar - winStart
+
+	line := make([]byte, 0, displayWidth*4)
+	for col := 0; col < displayWidth; col++ {
+		barIdx := winStart + col
+		var ch rune = ' '
+		if barIdx >= 0 && barIdx < totalBars {
+			ch = bars[barIdx]
+		}
+		if col == cursorCol {
 			line = append(line, "\033[33m"...)
 			line = append(line, []byte(string(ch))...)
 			line = append(line, "\033[0m"...)
@@ -251,15 +275,18 @@ func main() {
 	fmt.Printf("Playing %s (%.1fs, %.0f Hz, %d ch)\n", args[0], seconds, *ar, *ac)
 
 	// Compute waveform if stdout is a tty and -noviz wasn't set.
-	var bars []rune
+	var (
+		bars      []rune
+		waveWidth int
+	)
 	if !*noviz {
 		termW := int(C.terminalWidth())
 		if termW > 0 {
-			waveWidth := termW / 4
+			waveWidth = termW / 4
 			if waveWidth < 30 {
 				waveWidth = 30
 			}
-			if bars, err = computeWaveform(args[0], numFrames, *ac, waveWidth); err != nil {
+			if bars, err = computeWaveform(args[0], numFrames, *ac, *ar); err != nil {
 				fmt.Fprintf(os.Stderr, "waveform: %v\n", err)
 				bars = nil
 			}
@@ -278,7 +305,7 @@ func main() {
 		return
 	}
 
-	fmt.Print(renderWaveform(bars, 0, seconds))
+	fmt.Print(renderWaveform(bars, 0, seconds, waveWidth))
 
 	done := make(chan struct{})
 	start := time.Now()
@@ -294,14 +321,14 @@ func main() {
 				if p > 1 {
 					p = 1
 				}
-				fmt.Print("\r" + renderWaveform(bars, p, seconds))
+				fmt.Print("\r" + renderWaveform(bars, p, seconds, waveWidth))
 			}
 		}
 	}()
 
 	rc := play()
 	close(done)
-	fmt.Print("\r" + renderWaveform(bars, 1, seconds))
+	fmt.Print("\r" + renderWaveform(bars, 1, seconds, waveWidth))
 	fmt.Println()
 
 	if rc != 0 {
