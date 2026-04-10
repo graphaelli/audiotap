@@ -180,8 +180,10 @@ func computeWaveform(path string, numFrames int64, channels int, sampleRate floa
 		maxRMS = 1
 	}
 
-	// dB normalization relative to the loudest bar, 40dB dynamic range.
-	const rangeDB = 40.0
+	// dB normalization relative to the loudest bar, 60dB dynamic range.
+	// 40dB was too narrow: quiet-but-audible speech (e.g. 45dB below a loud
+	// burst) was clipped to silence. 60dB covers typical speech dynamics.
+	const rangeDB = 60.0
 	maxDB := 20 * math.Log10(maxRMS)
 	bars := make([]rune, numBars)
 	for i, r := range rms {
