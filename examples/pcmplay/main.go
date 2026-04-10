@@ -131,7 +131,11 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 	}
 	defer f.Close()
 
-	peaks := make([]float64, width)
+	// Use RMS (not peak) per bar: peak over a 43-second window is always near
+	// max for speech, so there's no variation. RMS reflects average loudness,
+	// which varies meaningfully across sentences, pauses, and silence.
+	sumSq := make([]float64, width)
+	counts := make([]int, width)
 	const chunkFrames = 4096
 	buf := make([]byte, chunkFrames*channels*4)
 
@@ -148,11 +152,10 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 			for ch := 0; ch < channels; ch++ {
 				off := (i*channels + ch) * 4
 				bits := binary.LittleEndian.Uint32(buf[off : off+4])
-				s := math.Abs(float64(math.Float32frombits(bits)))
-				if s > peaks[barIdx] {
-					peaks[barIdx] = s
-				}
+				s := float64(math.Float32frombits(bits))
+				sumSq[barIdx] += s * s
 			}
+			counts[barIdx]++
 			framePos++
 		}
 		if err != nil {
@@ -160,26 +163,28 @@ func computeWaveform(path string, numFrames int64, channels, width int) ([]rune,
 		}
 	}
 
-	maxPeak := 0.0
-	for _, p := range peaks {
-		if p > maxPeak {
-			maxPeak = p
+	rms := make([]float64, width)
+	maxRMS := 0.0
+	for i, ss := range sumSq {
+		if counts[i] > 0 {
+			rms[i] = math.Sqrt(ss / float64(counts[i]*channels))
+			if rms[i] > maxRMS {
+				maxRMS = rms[i]
+			}
 		}
 	}
-	if maxPeak == 0 {
-		maxPeak = 1
+	if maxRMS == 0 {
+		maxRMS = 1
 	}
 
-	// Map to dB relative to the loudest peak, over a 40dB dynamic range.
-	// This spreads out the visual variation even when amplitudes are uniformly
-	// high (e.g. speech), where linear/sqrt scaling collapses everything to ▇█.
+	// dB normalization relative to the loudest bar, 40dB dynamic range.
 	const rangeDB = 40.0
-	maxDB := 20 * math.Log10(maxPeak)
+	maxDB := 20 * math.Log10(maxRMS)
 	bars := make([]rune, width)
-	for i, p := range peaks {
+	for i, r := range rms {
 		var idx int
-		if p > 0 {
-			norm := (20*math.Log10(p) - (maxDB - rangeDB)) / rangeDB
+		if r > 0 {
+			norm := (20*math.Log10(r) - (maxDB - rangeDB)) / rangeDB
 			if norm < 0 {
 				norm = 0
 			} else if norm > 1 {
