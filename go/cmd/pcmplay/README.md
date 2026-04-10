@@ -11,7 +11,7 @@ using the same flags as `ffplay`.
 ## Build
 
 ```
-cd go && make pcmplay
+make -C go pcmplay
 ```
 
 ## Usage

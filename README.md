@@ -72,7 +72,7 @@ ffplay -f f32le -ar 48000 -ac 1 mic.pcm
 If `ffplay` is not available, [pcmplay](go/cmd/pcmplay/) is a Go utility that plays the same PCM format:
 
 ```
-cd go && make pcmplay
+make -C go pcmplay
 ./build/pcmplay -ar 48000 -ac 2 system.pcm
 ./build/pcmplay -ar 48000 -ac 1 mic.pcm
 ```
