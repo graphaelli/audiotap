@@ -4,9 +4,9 @@ CC         = clang
 CFLAGS     = -Wall -Wextra -O2 -I$(ROOT)/include
 COV_FLAGS  = -fprofile-instr-generate -fcoverage-mapping
 
-.PHONY: all capture_both-go pcmplay test test-bridge coverage clean
+.PHONY: all capture_both-go pcmplay pcm2wav test test-bridge coverage clean
 
-all: capture_both-go pcmplay
+all: capture_both-go pcmplay pcm2wav
 
 # --- Go capture_both-go binary ---
 
@@ -23,6 +23,14 @@ pcmplay: $(BUILD)/pcmplay
 $(BUILD)/pcmplay: $(wildcard cmd/pcmplay/*.go)
 	@mkdir -p $(BUILD)
 	go build -o $@ ./cmd/pcmplay
+
+# --- Go pcm2wav binary ---
+
+pcm2wav: $(BUILD)/pcm2wav
+
+$(BUILD)/pcm2wav: $(wildcard cmd/pcm2wav/*.go)
+	@mkdir -p $(BUILD)
+	go build -o $@ ./cmd/pcm2wav
 
 # --- Tests ---
 
@@ -45,5 +53,5 @@ coverage:
 	go tool cover -func=$(BUILD)/go-coverage.out
 
 clean:
-	rm -f $(BUILD)/test_bridge $(BUILD)/capture_both-go $(BUILD)/pcmplay
+	rm -f $(BUILD)/test_bridge $(BUILD)/capture_both-go $(BUILD)/pcmplay $(BUILD)/pcm2wav
 	rm -f $(BUILD)/test_bridge.profraw $(BUILD)/test_bridge.profdata $(BUILD)/go-coverage.out
