@@ -2,7 +2,7 @@ CC = clang
 CFLAGS = -Wall -Wextra -Werror -O2 -Iinclude
 OBJCFLAGS = $(CFLAGS) -fobjc-arc
 LDFLAGS = -framework CoreAudio -framework AudioToolbox -framework CoreFoundation -framework Foundation -framework AVFoundation
-DYLIB_FLAGS = -dynamiclib -install_name @rpath/libaudiotap.dylib
+DYLIB_FLAGS = -dynamiclib -install_name @rpath/libaudiotap.dylib -headerpad_max_install_names
 COV_FLAGS = -fprofile-instr-generate -fcoverage-mapping
 
 .PHONY: all clean examples test coverage
